@@ -14,7 +14,7 @@ module.exports = {
     },
     devServer: {
         host: "0.0.0.0",
-        post: 8080, // port for local host
+        port: 8080, // port for local host
         static: path.resolve(appDirectory, "public"), // serve from public folder
         hot: true,
         devMiddleware: {
