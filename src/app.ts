@@ -48,6 +48,11 @@ class App {
 
     }
 
+    /**
+     * Returns a canvas object
+     * 
+     * @returns  A newly created canvas object
+     */
     private _createCanvas() {
         var canvas = document.createElement("canvas");
         canvas.style.width = "100%";
@@ -56,6 +61,10 @@ class App {
         return canvas
     }
 
+    /**
+     * Sets the scene to a cutscene.
+     * This scene is used for when assets are loading, displaying animations while they are set up
+     */
     private async _goToCutScene() : Promise<void> {
         this._engine.displayLoadingUI();
         
@@ -90,6 +99,9 @@ class App {
         });
     }
 
+    /**
+     * When the game is loaded, this function will handle presenting it to the player.
+     */
     private async _goToGame(){
 
         //--SETUP SCENE--
@@ -133,6 +145,10 @@ class App {
 
     }
 
+    /**
+     * This function creates the losing scene.
+     * When the player fails this is the scene displayed, it is followed by the start scene.
+     */
     private async _goToLose(): Promise<void> {
         this._engine.displayLoadingUI();
         
@@ -165,6 +181,10 @@ class App {
         this._state = State.LOSE;
     }
 
+    /**
+     * The first scene that the player is presented with.
+     * Following this is the cutscene while game assets loads
+     */
     private async _goToStart() : Promise<void> {
         // loading UI while start scene loads
         this._engine.displayLoadingUI();
@@ -206,9 +226,42 @@ class App {
         })
     }
 
+    /**
+     * A simple function which creates a game scene
+     */
     private async _setUpGame() {
         let scene = new Scene(this._engine);
         this._gamescene = scene;
+    }
+    
+    /**
+     * Function that starts the game set up process
+     */
+    private async _main(): Promise<void> {
+        await this._goToStart();
+
+        // Register a render loop to repeatedly render the scene
+        this._engine.runRenderLoop( () => {
+            switch (this._state) {
+                case State.START:
+                    this._scene.render();
+                    break;
+                case State.CUTSCENE:
+                    this._scene.render();
+                    break;
+                case State.GAME:
+                    this._scene.render();
+                    break;
+                case State.LOSE:
+                    this._scene.render();
+                    break;
+                default: break;
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            this._engine.resize();
+        });
     }
 }
 
