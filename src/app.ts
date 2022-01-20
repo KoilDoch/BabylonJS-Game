@@ -2,8 +2,10 @@ import "@babylonjs/core/Debug/debugLayer";
 import "@babylonjs/inspector";
 import "@babylonjs/loaders/glTF";
 import { AdvancedDynamicTexture , Button , Control} from "@babylonjs/gui";
-import { Engine, Scene, ArcRotateCamera, Vector3, HemisphericLight, Mesh, MeshBuilder, Color4, FreeCamera } from "@babylonjs/core";
+import { Engine, Scene, ArcRotateCamera, Vector3, HemisphericLight, Mesh, MeshBuilder, Color4, FreeCamera , Matrix, Quaternion, StandardMaterial, Color3 , PointLight, ShadowGenerator} from "@babylonjs/core";
 import { SceneExplorerComponent } from "@babylonjs/inspector/components/sceneExplorer/sceneExplorerComponent";
+import { Environment } from "./environment";
+import { Player } from "./characterController";
 
 enum State { START = 0, GAME = 1, LOSE = 2, CUTSCENE = 3}
 
@@ -12,6 +14,11 @@ class App {
     private _scene: Scene;
     private _canvas: HTMLCanvasElement;
     private _engine: Engine;
+    private _environment;
+
+    //Game State related
+    public assets;
+    private _player: Player;
 
     //Scene - related
     private _state: number = 0;
@@ -135,6 +142,13 @@ class App {
         var light1: HemisphericLight = new HemisphericLight("light1", new Vector3(1, 1, 0), scene);
         var sphere : Mesh = MeshBuilder.CreateSphere("sphere", {diameter:1} , scene);
 
+        //primitive character and setting
+        await this._initializeGameAsync(scene);
+
+        //--WHEN SCENE FINISHED LOADING--
+        await scene.whenReadyAsync();
+        scene.getMeshByName("outer").position = new Vector3(0, 3, 0);
+
         // get rid of startt scene, switch to game scene and change states
         this._scene.dispose();
         this._state = State.GAME;
@@ -142,7 +156,6 @@ class App {
         this._engine.hideLoadingUI();
         // game ready, give back control
         this._scene.attachControl();
-
     }
 
     /**
@@ -226,12 +239,85 @@ class App {
         })
     }
 
+    private async _initializeGameAsync(scene) : Promise<void> {
+        // temporary light for entire scene
+        var light0 = new HemisphericLight("HemiLight", new Vector3(0, 1, 0), scene);
+
+        const light = new PointLight("sparklight", new Vector3(0, 0, 0), scene);
+        light.diffuse = new Color3(0.08627450980392157, 0.10980392156862745, 0.15294117647058825);
+        light.intensity = 35;
+        light.radius = 1
+
+        // shadows
+        const shadowGenerator = new ShadowGenerator(1024, light);
+        shadowGenerator.darkness = 0.4;
+
+        // create the player
+        this._player = new Player(this.assets, scene, shadowGenerator); //dont have inputs yet so we dont need to pass it in
+    }
+
+    private _loadCharacterAssets(scene) {
+
+        async function loadCharacter() {
+                // collision mesh
+            const outer = MeshBuilder.CreateBox("outer", { width: 2, depth: 1, height: 3 }, scene);
+            outer.isVisible = false;
+            outer.isPickable = false;
+            outer.checkCollisions = true;
+
+            // move origin of box collider to bottom of the mesh
+            outer.bakeTransformIntoVertices(Matrix.Translation(0, 1.5, 0));
+
+            // for collisions
+            outer.ellipsoid = new Vector3(1, 1.5, 1);
+            outer.ellipsoidOffset = new Vector3(0, 1.5, 0);
+
+            // rotate player mesh 180 to see back of character
+            outer.rotationQuaternion = new Quaternion(0, 1, 0, 0);
+
+            var box = MeshBuilder.CreateBox("smalll", {width: 0.5,
+                depth: 0.5, height: 0.25, faceColors: [new Color4(0, 0, 0, 1),
+                new Color4(0,0,0,1), new Color4(0, 0, 0, 1), new Color4(0, 0, 0, 1),
+                new Color4(0, 0, 0, 1)]}, scene);
+            box.position.y = 1.5;
+            box.position.z = 1;
+
+            var body = Mesh.CreateCylinder("body", 3, 2, 2, 0, 0, scene);
+            var bodymt1 = new StandardMaterial("red", scene);
+            bodymt1.diffuseColor = new Color3(0.8, 0.5, 0.5);
+            body.material = bodymt1;
+            body.isPickable = false;
+            body.bakeTransformIntoVertices(Matrix.Translation(0, 1.5, 0)); // simulates import mesh origin
+
+            // assigns parents
+            box.parent = body;
+            body.parent = outer;
+
+            return {
+                mesh: outer as Mesh
+            }
+        }
+        
+        return loadCharacter().then((assets) => {
+            this.assets = assets;
+        });
+    }
+
     /**
      * A simple function which creates a game scene
      */
     private async _setUpGame() {
+        //--CREATE SCENE--
         let scene = new Scene(this._engine);
         this._gamescene = scene;
+
+        //-- CREATE ENVIRONMENT--
+        const environment = new Environment(scene);
+        this._environment = environment;
+        await this._environment.load();
+
+        //--LOAD ASSETS
+        await this._loadCharacterAssets(scene); // character
     }
     
     /**
